@@ -1,0 +1,43 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "did_not_pay_rent",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "The tenant did not pay rent this month. What notice do I serve and when does it expire?"}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "A nonpayment situation in Florida is handled with a 3-day notice to pay rent or vacate under Fla. Stat. § 83.56(3), counting 3 days excluding weekends and legal holidays. The response should cite relevant lease rent terms separately from the statute, calculate the deadline, avoid self-help eviction, note uncertainty, not claim to be a lawyer, and end with the disclaimer."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "moved_out_owes_utilities",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Tenant moved out without notice and still owes utilities. What should I do?"}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "This involves possible abandonment (Fla. Stat. § 83.595 / § 83.59) and whether unpaid utilities are additional rent, which depends on the lease. The response should cite lease utility/abandonment terms separately from Florida law, warn that declaring abandonment is risky, avoid self-help, provide conservative next steps, draft a tenant message, note uncertainty, not claim to be a lawyer, and end with the disclaimer."}]
+        }
+      }
+    },
+    {
+      "eval_case_id": "lock_change_after_notice",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "I served a 3-day notice today. Can I change the locks yet?"}]
+      },
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [{"text": "No. Changing the locks before a court judgment for possession is a prohibited self-help practice under Fla. Stat. § 83.67. The response should clearly say the landlord may not change locks yet, must obtain a court order via § 83.59, separate lease terms from law, note uncertainty, not claim to be a lawyer, and end with the disclaimer."}]
+        }
+      }
+    }
+  ]
+}
