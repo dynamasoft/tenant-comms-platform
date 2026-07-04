@@ -177,6 +177,7 @@ def make_florida_law_agent() -> LlmAgent:
         name="florida_law",
         model=config.make_model(),
         include_contents="none",
+        tools=[florida_law_mcp],
         instruction=(
             "You research Florida residential landlord-tenant law. Use the "
             "`lookup_florida_law` tool to find statutes relevant to this situation:\n"
