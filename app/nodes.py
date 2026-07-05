@@ -164,6 +164,58 @@ def final_response(ctx: Context, node_input: Any) -> Iterator[Event]:
 # =========================================================================================
 
 
+# -----------------------------------------------------------------------------------------
+# Debug callbacks for the LLM agent nodes.
+#
+# LlmAgent nodes run inside ADK, so you can't step through their "reasoning" — but these
+# callbacks ARE your own plain Python, invoked by ADK at key moments, so breakpoints set
+# inside them DO stop during a real run (Streamlit, scripts, or eval). They only observe;
+# returning None leaves ADK's data unchanged. Remove them once you're done inspecting.
+# -----------------------------------------------------------------------------------------
+
+
+def _trace_node_entry(callback_context):
+    """Fires as EACH LLM node is entered — this is how you watch the graph advance.
+
+    Attached to all four LLM agents, so a single breakpoint on the `return None` line stops
+    once per node, in graph order:
+        florida_law -> risk_analysis -> timeline -> message_draft
+    Inspect `node_name`, and `callback_context.state` to see what's in state at that point.
+    The print() also traces the flow to your terminal without needing to pause.
+    """
+    node_name = getattr(callback_context, "agent_name", "?")
+    print(f"[graph] entering node: {node_name}")
+    return None  # observe only; None means "run the node normally"
+
+
+def _after_law_tool(tool, args, tool_context, tool_response):
+    """Fires right AFTER `lookup_florida_law` returns — see what the law server gave back.
+
+    Set a breakpoint on the `return None` line and inspect:
+      * tool_name     — which tool the model called
+      * query         — the search string the model chose
+      * tool_response — the raw JSON/dict the MCP server returned (the statutes)
+    """
+    tool_name = getattr(tool, "name", "?")  # noqa: F841 - kept for the debugger
+    query = args.get("query")  # noqa: F841 - kept for the debugger
+    return None  # observe only; do not modify the tool result
+
+
+def _after_law_model(callback_context, llm_response):
+    """Fires right AFTER the model responds — see the text the agent generated.
+
+    Set a breakpoint on the `return None` line and inspect `text`. NOTE: this fires once
+    per model turn. On the turn where the model DECIDES to call the tool, `text` is usually
+    empty (it emits a function call, not prose); on the final turn `text` is the summary
+    that becomes state["law_findings"].
+    """
+    text = ""
+    content = getattr(llm_response, "content", None)
+    if content is not None and getattr(content, "parts", None):
+        text = " ".join(p.text for p in content.parts if getattr(p, "text", None))  # noqa: F841
+    return None  # observe only; do not modify the model response
+
+
 def make_florida_law_agent() -> LlmAgent:
     """Florida law node — queries the local MCP server. No output_schema (uses a tool)."""
     command, args = config.mcp_command()
@@ -178,6 +230,9 @@ def make_florida_law_agent() -> LlmAgent:
         model=config.make_model(),
         include_contents="none",
         tools=[florida_law_mcp],
+        before_agent_callback=_trace_node_entry,
+        after_tool_callback=_after_law_tool,
+        after_model_callback=_after_law_model,
         instruction=(
             "You research Florida residential landlord-tenant law. Use the "
             "`lookup_florida_law` tool to find statutes relevant to this situation:\n"
@@ -201,6 +256,7 @@ def make_risk_agent() -> LlmAgent:
         name="risk_analysis",
         model=config.make_model(),
         include_contents="none",
+        before_agent_callback=_trace_node_entry,
         instruction=(
             "You are a cautious landlord-operations analyst (NOT a lawyer). Compare the "
             "landlord's lease findings against the Florida law findings and assess risk for "
@@ -224,6 +280,7 @@ def make_timeline_agent() -> LlmAgent:
         name="timeline",
         model=config.make_model(),
         include_contents="none",
+        before_agent_callback=_trace_node_entry,
         instruction=(
             "You determine landlord/tenant deadlines for this situation: '{question}'. "
             "Today is {today}.\n\n"
@@ -251,6 +308,7 @@ def make_message_agent() -> LlmAgent:
         name="message_draft",
         model=config.make_model(),
         include_contents="none",
+        before_agent_callback=_trace_node_entry,
         instruction=(
             "Draft a landlord-to-tenant message about this situation: '{question}'.\n"
             "Tone: {tone}.\n\n"
