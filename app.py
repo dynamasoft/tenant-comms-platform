@@ -24,13 +24,22 @@ Note: `streamlit run app.py` executes this file by path, so the sibling `app/` p
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
 
-# Load Vertex/ADC configuration from .env before importing the workflow.
+# Local dev: load credentials (GEMINI_API_KEY / Vertex config) from .env.
 load_dotenv(Path(__file__).resolve().parent / ".env")
+
+# Streamlit Community Cloud: there is no .env on the server. The key is provided via
+# st.secrets, but google-genai reads GEMINI_API_KEY from the environment, so bridge it.
+if not os.getenv("GEMINI_API_KEY"):
+    try:
+        os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+    except Exception:  # noqa: BLE001 - no secrets file locally; .env already handled it
+        pass
 
 from app import config  # noqa: E402
 from app.documents import SUPPORTED_EXTENSIONS, UnsupportedDocumentError, extract_text  # noqa: E402
