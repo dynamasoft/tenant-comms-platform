@@ -135,11 +135,14 @@ The app is deployed on **Streamlit Community Cloud** — the whole bundle (UI + 
 
 ## Testing & evaluation
 
+Correctness is verified at **three levels** — deterministic tests for the plumbing, and two eval
+layers for the parts a language model actually generates.
+
 ```bash
 pytest                       # fast, offline tests (or: uv run pytest)
 pytest tests/unit            # unit tests only
 pytest tests/integration     # offline end-to-end (stubbed model)
-python evals/run_evals.py    # lightweight evals (calls the real model)
+python evals/run_evals.py    # lightweight heuristic evals (calls the real model)
 ```
 
 - **Unit tests** cover document extraction/chunking, retrieval ranking, the timeline date-math, the Florida-law lookup, and section assembly.
@@ -147,7 +150,35 @@ python evals/run_evals.py    # lightweight evals (calls the real model)
 - Following ADK guidance, tests **never assert on LLM-generated prose** (it's non-deterministic); response quality is checked by the eval layer instead.
 - A **live** server test exists but is gated: `RUN_SERVER_E2E=1 pytest tests/integration/test_server_e2e.py`.
 
-**Evals** score each scenario on seven signals — cites the lease, separates law from lease, includes the disclaimer, never pretends to be a lawyer, gives next steps, drafts a message, and includes a deadline when one applies (see [`evals/fixtures/expected_signals.md`](evals/fixtures/expected_signals.md)). A native `agents-cli eval run` (LLM-as-judge) path is also wired up.
+### Two eval layers
+
+**1. Lightweight heuristic evals** ([`evals/`](evals/)) — `python evals/run_evals.py` runs the real
+workflow on the six demo scenarios and scores each assembled answer on **seven safety/structure
+signals**: cites the lease, separates law from lease, includes the disclaimer, never pretends to be
+a lawyer, gives next steps, drafts a message, and includes a deadline when one applies (see
+[`evals/fixtures/expected_signals.md`](evals/fixtures/expected_signals.md)). Fast, deterministic,
+and cheap — a guardrail that the required *behaviors* are present on every run.
+
+**2. Native `agents-cli` eval (LLM-as-judge)** — the quality flywheel from the Agents CLI:
+
+```bash
+agents-cli eval generate    # run the agent over the eval dataset → traces (artifacts/traces/)
+agents-cli eval grade       # grade those traces with the LLM-as-judge → results (artifacts/grade_results/)
+agents-cli eval analyze     # (optional) cluster failure modes across results
+```
+
+- The judge is a **real, lintable/testable custom metric** ([`tests/eval/metrics.py`](tests/eval/metrics.py)),
+  not an inline prompt blob. It scores each final response **1–5** for accuracy, relevance, and
+  clarity, grading against each case's ground-truth `reference` and returning **schema-valid JSON**
+  (Pydantic `response_schema`, `temperature=0` for deterministic grading).
+- It's wired in via [`tests/eval/eval_config.yaml`](tests/eval/eval_config.yaml) and runs on **both**
+  Vertex AI (ADC) and Google AI Studio (`GEMINI_API_KEY`) — `genai.Client()` auto-selects the backend.
+- The eval dataset lives in [`tests/eval/datasets/`](tests/eval/datasets/); traces and graded results
+  are written under [`artifacts/`](artifacts/).
+
+**Result:** on the sampled scenarios the LLM-as-judge scored **5/5** — praising the correct
+§ 83.56(3) citation, the weekend/holiday-aware deadline math, the self-help-eviction warning, and the
+honest statement of uncertainty.
 
 ---
 
